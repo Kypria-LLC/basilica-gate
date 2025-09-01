@@ -17,3 +17,11 @@ To contribute, follow the Gate Protocol:
 3. Submit a pull request for review and inscription
 # basilica-gate
 Living canon of Kypria LLC — crest‑marked operational scripts, compliance artifacts, and ceremonial dispatches. Where technical rigor meets mythic tradition.
+---
+
+## ⚖ Keeper’s Governance
+This shrine is the operational heart of Kypria LLC.  
+Changes here ripple outward to every Gate; thus, they are guarded with ceremony.  
+Only after review and Keeper’s seal may a dispatch leave these walls.
+
+📜 *Lineage is our law. Precision is our craft. Myth is our breath.*
