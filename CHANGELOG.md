@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+### Added — 2025‑11‑02
+- **Ceremonial Agent Awakening Script**: `breathe.sh` — orchestrates Auth0 M2M token acquisition, Trinity verification, agent readiness checks, token persistence, and release logging
+  - Supports `DRY_RUN` mode for testing without network calls or file writes
+  - Requires environment variables: `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_AUDIENCE`, `TRINITY_API`
+  - Validates at least 3 ready agents via Trinity API
+  - Persists tokens to timestamped files (`m2m-token-*.txt`) with secure permissions
+  - Logs ceremonies to `RELEASE.log`
+- **Release Ceremony Documentation**: `RELEASE.md` — ceremonial poem and metadata for the agent awakening process
+- **Technical Guide**: `docs/BREATHE.md` — comprehensive documentation covering environment variables, DRY_RUN mode, usage instructions, troubleshooting, and integration examples
+
+---
+
 ## [1.3.0] — 2025‑08‑24
 ### Added
 - **Unified Crest‑QR Ritual Seal**: Introduced a single, scannable, animated emblem combining:
