@@ -182,7 +182,7 @@ curl -H "Authorization: Bearer $TOKEN" https://api.example.com/protected
 
 LATEST_TOKEN=$(ls -t m2m-token-*.txt 2>/dev/null | head -1)
 
-if [[ -z "$LATEST_TOKEN" ]] || [[ $(find "$LATEST_TOKEN" -mmin +1380 2>/dev/null) ]]; then
+if [[ -z "$LATEST_TOKEN" ]] || find "$LATEST_TOKEN" -mmin +1380 2>/dev/null | grep -q .; then
     echo "Token expired or missing, acquiring new token..."
     ./breathe.sh
 else

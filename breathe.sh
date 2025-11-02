@@ -107,8 +107,8 @@ else
     if [[ $JQ_AVAILABLE -eq 1 ]]; then
         ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
     else
-        # Fallback: basic parsing without jq
-        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+        # Fallback: basic parsing without jq - extract value between "access_token":" and next "
+        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
     fi
     
     if [[ -z "$ACCESS_TOKEN" ]] || [[ "$ACCESS_TOKEN" == "null" ]]; then
