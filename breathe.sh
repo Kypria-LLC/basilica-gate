@@ -108,7 +108,7 @@ else
         ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
     else
         # Fallback: basic parsing without jq
-        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
     fi
     
     if [[ -z "$ACCESS_TOKEN" ]] || [[ "$ACCESS_TOKEN" == "null" ]]; then
@@ -172,7 +172,7 @@ if [[ $JQ_AVAILABLE -eq 1 ]]; then
     AGENTS_READY=0
     AGENTS_NOT_READY=0
     
-    for i in $(seq 0 $((AGENT_COUNT - 1))); do
+    for ((i=0; i<AGENT_COUNT; i++)); do
         AGENT_ID=$(echo "$TRINITY_RESPONSE" | jq -r ".agents[$i].id // \"agent-$i\"")
         AGENT_READY=$(echo "$TRINITY_RESPONSE" | jq -r ".agents[$i].ready // false")
         PING_URL=$(echo "$TRINITY_RESPONSE" | jq -r ".agents[$i].ping_url // empty")
