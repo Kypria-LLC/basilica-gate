@@ -142,7 +142,7 @@ acquire_m2m_token() {
     fi
     
     local token_response
-    token_response=$(curl -s -X POST "https://${AUTH0_DOMAIN}/oauth/token" \
+    token_response=$(curl -s --max-time 30 -X POST "https://${AUTH0_DOMAIN}/oauth/token" \
         -H "Content-Type: application/json" \
         -d '{
             "client_id": "'"${AUTH0_CLIENT_ID}"'",
