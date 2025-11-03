@@ -60,7 +60,7 @@ for arg in "$@"; do
     case $arg in
         --dry-run)
             DRY_RUN="true"
-            shift
+            # shift is not needed here
             ;;
     esac
 done
