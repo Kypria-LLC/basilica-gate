@@ -185,7 +185,7 @@ check_agent_readiness() {
   fi
 
   local agent_count
-  agent_count=$(echo "$trinity_response" | jq '.agents | length // 0')
+  agent_count=$(echo "$trinity_response" | jq '.agents | length')
 
   if [[ "$agent_count" -lt "$MIN_AGENTS" ]]; then
     error "Insufficient agents: expected at least $MIN_AGENTS, got $agent_count"
@@ -196,10 +196,6 @@ check_agent_readiness() {
   local agents
   agents=$(echo "$trinity_response" | jq -c '.agents[]')
 
-  # Check if agents is empty
-  if [[ -z "$agents" ]]; then
-    error "No agents found in response"
-  fi
   local idx=0
   while IFS= read -r agent; do
     idx=$((idx + 1))
@@ -219,13 +215,10 @@ check_agent_readiness() {
       local ping_response
       ping_response=$(curl -s -X GET "$ping_url" \
         -H "Authorization: Bearer $token" \
-        -w "\n%{http_code}")
-      local curl_exit_code=$?
+        -w "\n%{http_code}" || echo "000")
       local http_code
       http_code=$(echo "$ping_response" | tail -n1)
-      if [[ "$curl_exit_code" -ne 0 ]]; then
-        error "Agent $agent_id ping failed: curl network error (exit code $curl_exit_code)"
-      elif [[ "$http_code" =~ ^2[0-9]{2}$ ]]; then
+      if [[ "$http_code" =~ ^2[0-9]{2}$ ]]; then
         log "  ✓ Ping successful (HTTP $http_code)"
       else
         error "Agent $agent_id ping failed (HTTP $http_code)"
@@ -247,6 +240,7 @@ persist_token() {
 
   if [[ "$DRY_RUN" == "1" ]]; then
     log "DRY_RUN: Skipping token persistence"
+    echo "dry-run-token-file.txt"
     return 0
   fi
 
@@ -257,7 +251,7 @@ persist_token() {
   log "Persisting token to $token_file..."
 
   echo "$token" > "$token_file" || error "Failed to write token file"
-  chmod 600 "$token_file" || error "Failed to set permissions on $token_file"
+  chmod 600 "$token_file" || log "WARNING: Failed to set permissions on $token_file"
 
   log "Token saved to $token_file"
   echo "$token_file"
@@ -283,3 +277,47 @@ log_release() {
 
   cat >> "$release_log" <<EOF
 
+===========================================
+Release: $timestamp
+Token File: $token_file
+===========================================
+EOF
+
+  log "Release logged to $release_log"
+}
+
+# ============================================================================
+# Main Execution
+# ============================================================================
+
+main() {
+  log "═══════════════════════════════════════════════════════════════"
+  log "  breathe.sh — Ceremonial Agent Awakening"
+  log "═══════════════════════════════════════════════════════════════"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "⚠️  DRY_RUN MODE ENABLED — No network calls or file writes"
+  fi
+
+  check_dependencies
+  validate_env
+
+  local token
+  token=$(acquire_token)
+
+  local trinity_response
+  trinity_response=$(verify_with_trinity "$token")
+
+  check_agent_readiness "$trinity_response" "$token"
+
+  local token_file
+  token_file=$(persist_token "$token")
+
+  log_release "$token_file"
+
+  log "═══════════════════════════════════════════════════════════════"
+  log "  ✓ Ceremony complete. Agents awakened."
+  log "═══════════════════════════════════════════════════════════════"
+}
+
+main "$@"
