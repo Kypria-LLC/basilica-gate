@@ -196,7 +196,7 @@ verify_trinity_service() {
     local response_code
     response_code=$(curl -s -o /dev/null -w "%{http_code}" "$service_url" || echo "000")
     
-    if [[ "$response_code" =~ ^(200|201|204|401|403)$ ]]; then
+    if [[ "$response_code" =~ ^(200|201|204)$ ]]; then
         log_success "$service_name is responsive (HTTP $response_code)"
         return 0
     else
