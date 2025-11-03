@@ -219,10 +219,13 @@ check_agent_readiness() {
       local ping_response
       ping_response=$(curl -s -X GET "$ping_url" \
         -H "Authorization: Bearer $token" \
-        -w "\n%{http_code}" || echo "000")
+        -w "\n%{http_code}")
+      local curl_exit_code=$?
       local http_code
       http_code=$(echo "$ping_response" | tail -n1)
-      if [[ "$http_code" =~ ^2[0-9]{2}$ ]]; then
+      if [[ "$curl_exit_code" -ne 0 ]]; then
+        error "Agent $agent_id ping failed: curl network error (exit code $curl_exit_code)"
+      elif [[ "$http_code" =~ ^2[0-9]{2}$ ]]; then
         log "  ✓ Ping successful (HTTP $http_code)"
       else
         error "Agent $agent_id ping failed (HTTP $http_code)"
