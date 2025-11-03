@@ -257,7 +257,7 @@ persist_token() {
   log "Persisting token to $token_file..."
 
   echo "$token" > "$token_file" || error "Failed to write token file"
-  chmod 600 "$token_file" || log "WARNING: Failed to set permissions on $token_file"
+  chmod 600 "$token_file" || error "Failed to set permissions on $token_file"
 
   log "Token saved to $token_file"
   echo "$token_file"
