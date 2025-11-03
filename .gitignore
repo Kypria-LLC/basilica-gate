@@ -208,4 +208,5 @@ __marimo__/
 
 # breathe.sh artifacts
 m2m-token-*.txt
+RELEASE.log
 breathe-release.log

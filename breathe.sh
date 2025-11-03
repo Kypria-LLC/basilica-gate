@@ -1,257 +1,323 @@
 #!/usr/bin/env bash
-# breathe.sh - Auth0 M2M Token Acquisition & Trinity Verification
-# Part of the Basilica Gate canon — where technical precision meets ceremonial rigor.
 #
-# Usage:
-#   DRY_RUN=1 ./breathe.sh      # Simulate without network calls or file writes
-#   ./breathe.sh                 # Full execution
+# breathe.sh — Ceremonial Agent Awakening
+# ========================================
+# Acquires Auth0 M2M token, verifies via Trinity, ensures agent readiness,
+# persists token, and logs the release ceremony.
 #
-# Required Environment Variables:
-#   AUTH0_DOMAIN         - Auth0 tenant domain (e.g., "your-tenant.auth0.com")
-#   AUTH0_CLIENT_ID      - M2M application client ID
-#   AUTH0_CLIENT_SECRET  - M2M application client secret
-#   AUTH0_AUDIENCE       - API audience identifier
-#   TRINITY_API          - Trinity verification endpoint base URL
+# Environment Variables (required unless DRY_RUN=1):
+#   AUTH0_DOMAIN         — Auth0 tenant domain (e.g., "example.auth0.com")
+#   AUTH0_CLIENT_ID      — M2M client ID
+#   AUTH0_CLIENT_SECRET  — M2M client secret
+#   AUTH0_AUDIENCE       — API audience identifier
+#   TRINITY_API          — Trinity API base URL (e.g., "https://trinity.example.com")
 #
-# Exit Codes:
-#   0 - Success
-#   1 - Missing dependencies or environment variables
-#   2 - Auth0 token acquisition failed
-#   3 - Trinity verification failed
-#   4 - Agent readiness check failed
+# Optional:
+#   DRY_RUN              — Set to "1" to skip network calls and file writes
+#
+# Dependencies:
+#   - curl (required)
+#   - jq (recommended for JSON parsing; script degrades gracefully without it)
+#
 
 set -euo pipefail
 
-# Color codes for ceremonial output
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly GOLD='\033[38;5;220m'
-readonly NC='\033[0m' # No Color
+# ============================================================================
+# Configuration & Validation
+# ============================================================================
 
-# Ceremonial banner
-echo -e "${GOLD}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GOLD}║                    BREATHE.SH — AWAKENING                      ║${NC}"
-echo -e "${GOLD}║        Auth0 M2M Token Acquisition & Trinity Verification      ║${NC}"
-echo -e "${GOLD}╚════════════════════════════════════════════════════════════════╝${NC}"
-echo ""
+DRY_RUN="${DRY_RUN:-0}"
+MIN_AGENTS=3
 
-# Check for DRY_RUN mode
-if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    echo -e "${YELLOW}[DRY RUN] Simulation mode enabled - no network calls or file writes${NC}"
-    echo ""
-fi
+log() {
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" >&2
+}
 
-# Dependency check
-echo -e "${BLUE}→ Checking dependencies...${NC}"
-if ! command -v curl &> /dev/null; then
-    echo -e "${RED}✗ curl is required but not installed${NC}"
-    exit 1
-fi
+error() {
+  log "ERROR: $*"
+  exit 1
+}
 
-if ! command -v jq &> /dev/null; then
-    echo -e "${YELLOW}⚠ jq is recommended for JSON parsing but not found${NC}"
-    echo -e "${YELLOW}  Install with: apt-get install jq / brew install jq${NC}"
-    JQ_AVAILABLE=0
-else
-    echo -e "${GREEN}✓ jq available${NC}"
-    JQ_AVAILABLE=1
-fi
+check_dependencies() {
+  if ! command -v curl &>/dev/null; then
+    error "curl is required but not found in PATH"
+  fi
+  if ! command -v jq &>/dev/null; then
+    log "WARNING: jq not found; JSON parsing will be limited"
+  fi
+}
 
-echo -e "${GREEN}✓ curl available${NC}"
-echo ""
+validate_env() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "DRY_RUN mode enabled — skipping environment validation"
+    return 0
+  fi
 
-# Environment variable validation
-echo -e "${BLUE}→ Validating environment variables...${NC}"
-REQUIRED_VARS=("AUTH0_DOMAIN" "AUTH0_CLIENT_ID" "AUTH0_CLIENT_SECRET" "AUTH0_AUDIENCE" "TRINITY_API")
-MISSING_VARS=()
+  local missing=()
+  [[ -z "${AUTH0_DOMAIN:-}" ]] && missing+=("AUTH0_DOMAIN")
+  [[ -z "${AUTH0_CLIENT_ID:-}" ]] && missing+=("AUTH0_CLIENT_ID")
+  [[ -z "${AUTH0_CLIENT_SECRET:-}" ]] && missing+=("AUTH0_CLIENT_SECRET")
+  [[ -z "${AUTH0_AUDIENCE:-}" ]] && missing+=("AUTH0_AUDIENCE")
+  [[ -z "${TRINITY_API:-}" ]] && missing+=("TRINITY_API")
 
-for var in "${REQUIRED_VARS[@]}"; do
-    if [[ -z "${!var:-}" ]]; then
-        MISSING_VARS+=("$var")
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    error "Missing required environment variables: ${missing[*]}"
+  fi
+}
+
+# ============================================================================
+# Auth0 M2M Token Acquisition
+# ============================================================================
+
+acquire_token() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "DRY_RUN: Skipping Auth0 token acquisition"
+    echo "dry-run-token-placeholder"
+    return 0
+  fi
+
+  log "Acquiring M2M token from Auth0..."
+
+  local token_url="https://${AUTH0_DOMAIN}/oauth/token"
+  local payload
+  payload=$(cat <<EOF
+{
+  "client_id": "${AUTH0_CLIENT_ID}",
+  "client_secret": "${AUTH0_CLIENT_SECRET}",
+  "audience": "${AUTH0_AUDIENCE}",
+  "grant_type": "client_credentials"
+}
+EOF
+)
+
+  local response
+  response=$(curl -s -X POST "$token_url" \
+    -H "Content-Type: application/json" \
+    -d "$payload") || error "Failed to acquire token from Auth0"
+
+  if command -v jq &>/dev/null; then
+    local token
+    token=$(echo "$response" | jq -r '.access_token // empty')
+    if [[ -z "$token" || "$token" == "null" ]]; then
+      log "Auth0 response: $response"
+      error "No access_token in Auth0 response"
     fi
-done
+    echo "$token"
+  else
+    # Fallback: extract token with grep/sed
+    local token
+    token=$(echo "$response" | grep -o '"access_token":"[^"]*"' | sed 's/"access_token":"\(.*\)"/\1/')
+    if [[ -z "$token" ]]; then
+      log "Auth0 response: $response"
+      error "No access_token in Auth0 response (jq not available)"
+    fi
+    echo "$token"
+  fi
+}
 
-if [[ ${#MISSING_VARS[@]} -gt 0 ]]; then
-    echo -e "${RED}✗ Missing required environment variables:${NC}"
-    for var in "${MISSING_VARS[@]}"; do
-        echo -e "${RED}  - $var${NC}"
-    done
-    echo ""
-    echo -e "${YELLOW}Set them in your environment or .env file${NC}"
-    exit 1
-fi
+# ============================================================================
+# Trinity Verification
+# ============================================================================
 
-echo -e "${GREEN}✓ All required environment variables present${NC}"
-echo ""
+verify_with_trinity() {
+  local token="$1"
 
-# Step 1: Acquire Auth0 M2M Token
-echo -e "${BLUE}→ Acquiring Auth0 M2M token...${NC}"
-TOKEN_URL="https://${AUTH0_DOMAIN}/oauth/token"
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "DRY_RUN: Skipping Trinity verification"
+    # Return a mock response with 3 ready agents
+    cat <<EOF
+{
+  "ok": true,
+  "agents": [
+    {"id": "agent-1", "ready": true},
+    {"id": "agent-2", "ready": true},
+    {"id": "agent-3", "ready": true}
+  ]
+}
+EOF
+    return 0
+  fi
 
-if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    echo -e "${YELLOW}[DRY RUN] Would POST to: $TOKEN_URL${NC}"
-    ACCESS_TOKEN="dry_run_mock_token_$(date +%s)"
-    echo -e "${GREEN}✓ Mock token generated: ${ACCESS_TOKEN:0:20}...${NC}"
-else
-    TOKEN_RESPONSE=$(curl -s -X POST "$TOKEN_URL" \
-        -H "Content-Type: application/json" \
-        -d "{
-            \"client_id\": \"$AUTH0_CLIENT_ID\",
-            \"client_secret\": \"$AUTH0_CLIENT_SECRET\",
-            \"audience\": \"$AUTH0_AUDIENCE\",
-            \"grant_type\": \"client_credentials\"
-        }")
-    
-    if [[ $JQ_AVAILABLE -eq 1 ]]; then
-        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.access_token // empty')
+  log "Verifying token with Trinity..."
+
+  local trinity_url="${TRINITY_API%/}/api/verify"
+  local response
+  response=$(curl -s -X POST "$trinity_url" \
+    -H "Authorization: Bearer $token" \
+    -H "Content-Type: application/json") || error "Failed to verify with Trinity"
+
+  if command -v jq &>/dev/null; then
+    local ok
+    ok=$(echo "$response" | jq -r '.ok // false')
+    if [[ "$ok" != "true" ]]; then
+      log "Trinity response: $response"
+      error "Trinity verification failed (ok != true)"
+    fi
+  else
+    # Fallback: check for "ok":true pattern
+    if ! echo "$response" | grep -q '"ok"[[:space:]]*:[[:space:]]*true'; then
+      log "Trinity response: $response"
+      error "Trinity verification failed (ok != true, jq not available)"
+    fi
+  fi
+
+  echo "$response"
+}
+
+# ============================================================================
+# Agent Readiness Checks
+# ============================================================================
+
+check_agent_readiness() {
+  local trinity_response="$1"
+  local token="$2"
+
+  log "Checking agent readiness..."
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "DRY_RUN: Skipping agent readiness checks"
+    return 0
+  fi
+
+  if ! command -v jq &>/dev/null; then
+    log "WARNING: jq not available; skipping detailed agent readiness checks"
+    return 0
+  fi
+
+  local agent_count
+  agent_count=$(echo "$trinity_response" | jq '.agents | length')
+
+  if [[ "$agent_count" -lt "$MIN_AGENTS" ]]; then
+    error "Insufficient agents: expected at least $MIN_AGENTS, got $agent_count"
+  fi
+
+  log "Found $agent_count agents (minimum: $MIN_AGENTS)"
+
+  local agents
+  agents=$(echo "$trinity_response" | jq -c '.agents[]')
+
+  local idx=0
+  while IFS= read -r agent; do
+    idx=$((idx + 1))
+    local agent_id
+    agent_id=$(echo "$agent" | jq -r '.id // "unknown"')
+    local ready
+    ready=$(echo "$agent" | jq -r '.ready // false')
+    local ping_url
+    ping_url=$(echo "$agent" | jq -r '.ping_url // empty')
+
+    log "Agent $idx: $agent_id"
+
+    if [[ "$ready" == "true" ]]; then
+      log "  ✓ Ready flag: true"
+    elif [[ -n "$ping_url" ]]; then
+      log "  Pinging: $ping_url"
+      local ping_response
+      ping_response=$(curl -s -X GET "$ping_url" \
+        -H "Authorization: Bearer $token" \
+        -w "\n%{http_code}" || echo "000")
+      local http_code
+      http_code=$(echo "$ping_response" | tail -n1)
+      if [[ "$http_code" =~ ^2[0-9]{2}$ ]]; then
+        log "  ✓ Ping successful (HTTP $http_code)"
+      else
+        error "Agent $agent_id ping failed (HTTP $http_code)"
+      fi
     else
-        # Fallback: basic parsing without jq - extract value between "access_token":" and next "
-        ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+      error "Agent $agent_id is not ready and has no ping_url"
     fi
-    
-    if [[ -z "$ACCESS_TOKEN" ]] || [[ "$ACCESS_TOKEN" == "null" ]]; then
-        echo -e "${RED}✗ Failed to acquire access token${NC}"
-        echo -e "${RED}Response: $TOKEN_RESPONSE${NC}"
-        exit 2
-    fi
-    
-    echo -e "${GREEN}✓ Access token acquired${NC}"
-fi
-echo ""
+  done <<< "$agents"
 
-# Step 2: Verify with Trinity
-echo -e "${BLUE}→ Verifying token with Trinity...${NC}"
-TRINITY_VERIFY_URL="${TRINITY_API%/}/api/verify"
+  log "All agents are ready"
+}
 
-if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    echo -e "${YELLOW}[DRY RUN] Would POST to: $TRINITY_VERIFY_URL${NC}"
-    TRINITY_RESPONSE='{"ok":true,"agents":[{"id":"agent1","ready":true},{"id":"agent2","ready":true},{"id":"agent3","ready":true}]}'
-    echo -e "${GREEN}✓ Mock Trinity verification successful${NC}"
-else
-    TRINITY_RESPONSE=$(curl -s -X POST "$TRINITY_VERIFY_URL" \
-        -H "Authorization: Bearer $ACCESS_TOKEN" \
-        -H "Content-Type: application/json")
-    
-    if [[ $JQ_AVAILABLE -eq 1 ]]; then
-        TRINITY_OK=$(echo "$TRINITY_RESPONSE" | jq -r '.ok // false')
-    else
-        # Fallback: basic check for "ok":true pattern
-        if echo "$TRINITY_RESPONSE" | grep -q '"ok"[[:space:]]*:[[:space:]]*true'; then
-            TRINITY_OK="true"
-        else
-            TRINITY_OK="false"
-        fi
-    fi
-    
-    if [[ "$TRINITY_OK" != "true" ]]; then
-        echo -e "${RED}✗ Trinity verification failed${NC}"
-        echo -e "${RED}Response: $TRINITY_RESPONSE${NC}"
-        exit 3
-    fi
-    
-    echo -e "${GREEN}✓ Trinity verification successful${NC}"
-fi
-echo ""
+# ============================================================================
+# Token Persistence
+# ============================================================================
 
-# Step 3: Agent Readiness Check
-echo -e "${BLUE}→ Checking agent readiness...${NC}"
+persist_token() {
+  local token="$1"
 
-if [[ $JQ_AVAILABLE -eq 1 ]]; then
-    AGENT_COUNT=$(echo "$TRINITY_RESPONSE" | jq '.agents | length')
-    
-    if [[ $AGENT_COUNT -lt 3 ]]; then
-        echo -e "${RED}✗ Insufficient agents: found $AGENT_COUNT, require at least 3${NC}"
-        exit 4
-    fi
-    
-    echo -e "${GREEN}✓ Found $AGENT_COUNT agents${NC}"
-    
-    # Check each agent's readiness
-    AGENTS_READY=0
-    AGENTS_NOT_READY=0
-    
-    for ((i=0; i<AGENT_COUNT; i++)); do
-        AGENT_ID=$(echo "$TRINITY_RESPONSE" | jq -r ".agents[$i].id // \"agent-$i\"")
-        AGENT_READY=$(echo "$TRINITY_RESPONSE" | jq -r ".agents[$i].ready // false")
-        PING_URL=$(echo "$TRINITY_RESPONSE" | jq -r ".agents[$i].ping_url // empty")
-        
-        if [[ "$AGENT_READY" == "true" ]]; then
-            echo -e "${GREEN}  ✓ Agent $AGENT_ID: ready${NC}"
-            ((AGENTS_READY++)) || true
-        elif [[ -n "$PING_URL" ]] && [[ "${DRY_RUN:-0}" != "1" ]]; then
-            echo -e "${YELLOW}  ⟳ Agent $AGENT_ID: checking ping_url...${NC}"
-            PING_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $ACCESS_TOKEN" "$PING_URL")
-            
-            if [[ "$PING_STATUS" == "200" ]]; then
-                echo -e "${GREEN}  ✓ Agent $AGENT_ID: ping successful (HTTP $PING_STATUS)${NC}"
-                ((AGENTS_READY++)) || true
-            else
-                echo -e "${RED}  ✗ Agent $AGENT_ID: ping failed (HTTP $PING_STATUS)${NC}"
-                ((AGENTS_NOT_READY++)) || true
-            fi
-        elif [[ -n "$PING_URL" ]] && [[ "${DRY_RUN:-0}" == "1" ]]; then
-            echo -e "${YELLOW}  [DRY RUN] Agent $AGENT_ID: would ping $PING_URL${NC}"
-            ((AGENTS_READY++)) || true
-        else
-            echo -e "${RED}  ✗ Agent $AGENT_ID: not ready and no ping_url${NC}"
-            ((AGENTS_NOT_READY++)) || true
-        fi
-    done
-    
-    if [[ $AGENTS_NOT_READY -gt 0 ]]; then
-        echo -e "${RED}✗ Some agents not ready: $AGENTS_NOT_READY failed${NC}"
-        exit 4
-    fi
-    
-    echo -e "${GREEN}✓ All agents ready ($AGENTS_READY/$AGENT_COUNT)${NC}"
-else
-    # Without jq, do basic validation
-    echo -e "${YELLOW}⚠ jq not available - skipping detailed agent check${NC}"
-    if echo "$TRINITY_RESPONSE" | grep -q '"agents"'; then
-        echo -e "${GREEN}✓ Agents array present in response${NC}"
-    else
-        echo -e "${RED}✗ No agents array in Trinity response${NC}"
-        exit 4
-    fi
-fi
-echo ""
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "DRY_RUN: Skipping token persistence"
+    echo "dry-run-token-file.txt"
+    return 0
+  fi
 
-# Step 4: Persist Token
-echo -e "${BLUE}→ Persisting access token...${NC}"
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-TOKEN_FILE="m2m-token-${TIMESTAMP}.txt"
+  local timestamp
+  timestamp=$(date -u +%Y%m%d-%H%M%S)
+  local token_file="m2m-token-${timestamp}.txt"
 
-if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    echo -e "${YELLOW}[DRY RUN] Would write token to: $TOKEN_FILE${NC}"
-else
-    echo "$ACCESS_TOKEN" > "$TOKEN_FILE"
-    chmod 600 "$TOKEN_FILE"
-    echo -e "${GREEN}✓ Token saved to: $TOKEN_FILE${NC}"
-fi
-echo ""
+  log "Persisting token to $token_file..."
 
-# Step 5: Release Logging
-echo -e "${BLUE}→ Logging release ceremony...${NC}"
-RELEASE_LOG="breathe-release.log"
-LOG_ENTRY="[$(date -Iseconds)] breathe.sh executed successfully | Token: ${TOKEN_FILE} | Trinity: verified | Agents: ready"
+  echo "$token" > "$token_file" || error "Failed to write token file"
+  chmod 600 "$token_file" || log "WARNING: Failed to set permissions on $token_file"
 
-if [[ "${DRY_RUN:-0}" == "1" ]]; then
-    echo -e "${YELLOW}[DRY RUN] Would append to $RELEASE_LOG:${NC}"
-    echo -e "${YELLOW}$LOG_ENTRY${NC}"
-else
-    echo "$LOG_ENTRY" >> "$RELEASE_LOG"
-    echo -e "${GREEN}✓ Release logged to: $RELEASE_LOG${NC}"
-fi
-echo ""
+  log "Token saved to $token_file"
+  echo "$token_file"
+}
 
-# Ceremonial conclusion
-echo -e "${GOLD}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${GOLD}║                    BREATHE COMPLETE — SEALED                   ║${NC}"
-echo -e "${GOLD}╚════════════════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo -e "${GREEN}The Gate breathes. The token is forged. The agents stand ready.${NC}"
-echo ""
+# ============================================================================
+# Release Logging
+# ============================================================================
 
-exit 0
+log_release() {
+  local token_file="$1"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "DRY_RUN: Skipping release logging"
+    return 0
+  fi
+
+  local release_log="RELEASE.log"
+  local timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  log "Logging release to $release_log..."
+
+  cat >> "$release_log" <<EOF
+
+===========================================
+Release: $timestamp
+Token File: $token_file
+===========================================
+EOF
+
+  log "Release logged to $release_log"
+}
+
+# ============================================================================
+# Main Execution
+# ============================================================================
+
+main() {
+  log "═══════════════════════════════════════════════════════════════"
+  log "  breathe.sh — Ceremonial Agent Awakening"
+  log "═══════════════════════════════════════════════════════════════"
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    log "⚠️  DRY_RUN MODE ENABLED — No network calls or file writes"
+  fi
+
+  check_dependencies
+  validate_env
+
+  local token
+  token=$(acquire_token)
+
+  local trinity_response
+  trinity_response=$(verify_with_trinity "$token")
+
+  check_agent_readiness "$trinity_response" "$token"
+
+  local token_file
+  token_file=$(persist_token "$token")
+
+  log_release "$token_file"
+
+  log "═══════════════════════════════════════════════════════════════"
+  log "  ✓ Ceremony complete. Agents awakened."
+  log "═══════════════════════════════════════════════════════════════"
+}
+
+main "$@"
