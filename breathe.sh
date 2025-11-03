@@ -196,6 +196,10 @@ check_agent_readiness() {
   local agents
   agents=$(echo "$trinity_response" | jq -c '.agents[]')
 
+  # Check if agents is empty
+  if [[ -z "$agents" ]]; then
+    error "No agents found in response"
+  fi
   local idx=0
   while IFS= read -r agent; do
     idx=$((idx + 1))
