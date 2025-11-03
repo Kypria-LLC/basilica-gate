@@ -17,6 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Logs ceremonies to `RELEASE.log`
 - **Release Ceremony Documentation**: `RELEASE.md` — ceremonial poem and metadata for the agent awakening process
 - **Technical Guide**: `docs/BREATHE.md` — comprehensive documentation covering environment variables, DRY_RUN mode, usage instructions, troubleshooting, and integration examples
+### Added
+- **breathe.sh Script**: Auth0 M2M token acquisition and Trinity verification script (2025-11-02)
+  - Acquires Auth0 machine-to-machine tokens via OAuth2 client credentials flow
+  - Verifies tokens with Trinity API endpoint
+  - Performs agent readiness checks (minimum 3 agents required)
+  - Persists tokens to timestamped files (`m2m-token-*.txt`)
+  - Maintains release ceremony log (`breathe-release.log`)
+  - Supports DRY_RUN mode for testing without network calls or file writes
+- **RELEASE.md**: Ceremonial documentation and poem for breathe.sh release
+- **docs/BREATHE.md**: Comprehensive guide covering environment variables, DRY_RUN mode, execution instructions, and next steps for agents
 
 ---
 
