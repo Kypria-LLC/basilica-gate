@@ -153,7 +153,16 @@ acquire_m2m_token() {
     
     if [[ -z "$token_response" ]] || ! echo "$token_response" | jq -e '.access_token' > /dev/null 2>&1; then
         log_error "Failed to acquire M2M token"
-        log_error "Response: $token_response"
+        # Log only error details, not the full response
+        local error_msg
+        error_msg=$(echo "$token_response" | jq -r '.error // empty')
+        local error_desc
+        error_desc=$(echo "$token_response" | jq -r '.error_description // empty')
+        if [[ -n "$error_msg" ]] || [[ -n "$error_desc" ]]; then
+            log_error "Auth0 error: ${error_msg} - ${error_desc}"
+        else
+            log_error "Auth0 token response did not contain error details."
+        fi
         return 2
     fi
     
