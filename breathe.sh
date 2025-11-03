@@ -185,7 +185,7 @@ check_agent_readiness() {
   fi
 
   local agent_count
-  agent_count=$(echo "$trinity_response" | jq '.agents | length')
+  agent_count=$(echo "$trinity_response" | jq '.agents | length // 0')
 
   if [[ "$agent_count" -lt "$MIN_AGENTS" ]]; then
     error "Insufficient agents: expected at least $MIN_AGENTS, got $agent_count"
