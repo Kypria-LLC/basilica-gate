@@ -61,6 +61,10 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Breathe ceremony artifacts
+m2m-token-*.json
+RELEASE.log
+
 # Flask stuff:
 instance/
 .webassets-cache

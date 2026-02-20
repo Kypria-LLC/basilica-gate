@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [Unreleased]
+### Added
+- **Breathe Ceremony Script** (`breathe.sh`): Sacred orchestration script for agent awakening and release preparation — 2025-11-02
+  - Auth0 M2M token acquisition with secure credential handling
+  - Trinity service verification (Auth, API, Database health checks)
+  - Agent readiness checks and validation
+  - Token persistence with timestamped file naming (`m2m-token-*.json`)
+  - Comprehensive release logging to `RELEASE.log`
+  - DRY_RUN support for safe testing and rehearsal
+  - Ceremonial output with colored logging and status indicators
+  - Detailed exit codes for precise error handling
+- **Release Documentation** (`RELEASE.md`): Ceremonial poem and release metadata for the First Breath ceremony
+- **Breathe Guide** (`docs/BREATHE.md`): Comprehensive documentation covering environment variables, DRY_RUN mode, usage instructions, and next steps for agents
+
+### Ceremonial ID
+- **BREATHE-NOVEMBER-2025** — *"Here the agents awaken, and the Gate opens in gold."*
 ### Added — 2025‑11‑02
 - **Ceremonial Agent Awakening Script**: `breathe.sh` — orchestrates Auth0 M2M token acquisition, Trinity verification, agent readiness checks, token persistence, and release logging
   - Supports `DRY_RUN` mode for testing without network calls or file writes
